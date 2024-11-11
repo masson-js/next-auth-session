@@ -1,4 +1,5 @@
 "use server";
+import { PrismaClient } from "@prisma/client";
 
 import { sessionOptions, SessionData, defaultSession } from "@/lib";
 import { getIronSession } from "iron-session";
@@ -32,11 +33,32 @@ export const registration = async (
   formData: FormData
 ) => {
   const session = await getSession();
+  const prisma = new PrismaClient();
 
   const formUsername = formData.get("username") as string;
   const formPassword = formData.get("password") as string;
+  const formEmail = formData.get("email") as string;
 
-  console.log(formUsername, formPassword);
+  async function dataBaseconnect() {
+    await prisma.user.create({
+      data: {
+        name: formUsername,
+        email: formEmail,
+        password: formPassword,
+      },
+    });
+  }
+
+  dataBaseconnect()
+    .then(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (e: any) => {
+      console.error(e);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+
   session.userId = "1";
   session.username = formUsername;
   session.isPro = isPro;
