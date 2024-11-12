@@ -1,13 +1,13 @@
 "use server";
 import { PrismaClient } from "@prisma/client";
-
+import { v4 as uuidv4 } from "uuid";
 import { sessionOptions, SessionData, defaultSession } from "@/lib";
 import { getIronSession } from "iron-session";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import argon2 from "argon2";
 
-let username: any;
 let isPro = true;
 let isBlocked = true;
 
@@ -20,8 +20,6 @@ export const getSession = async () => {
   if (!session.isLoggedIn) {
     session.isLoggedIn = defaultSession.isLoggedIn;
   }
-
-  // CHECK THE USER IN THE DB
   session.isBlocked = isBlocked;
   session.isPro = isPro;
 
@@ -39,12 +37,16 @@ export const registration = async (
   const formPassword = formData.get("password") as string;
   const formEmail = formData.get("email") as string;
 
+  const userID = uuidv4();
+  const hashedPassword = await argon2.hash(formPassword);
+
   async function dataBaseconnect() {
     await prisma.user.create({
       data: {
         name: formUsername,
         email: formEmail,
-        password: formPassword,
+        password: hashedPassword,
+        testuserId: userID,
       },
     });
   }
@@ -59,7 +61,7 @@ export const registration = async (
       process.exit(1);
     });
 
-  session.userId = "1";
+  session.userId = userID;
   session.username = formUsername;
   session.isPro = isPro;
   session.isLoggedIn = true;
@@ -72,18 +74,20 @@ export const login = async (
   formData: FormData
 ) => {
   const session = await getSession();
+  const prisma = new PrismaClient();
 
   const formUsername = formData.get("username") as string;
   const formPassword = formData.get("password") as string;
 
-  // CHECK USER IN THE DB
-  // const user = await db.getUser({username,password})
+  const user = await prisma.user.findFirst({
+    where: { name: formUsername },
+  });
 
-  if (formUsername !== username) {
-    return { error: "Wrong Credentials!" };
+  if (!user || !(await argon2.verify(user.password, formPassword))) {
+    return { error: "Wrong Name or Password!" };
   }
 
-  session.userId = "1";
+  session.userId = user.testuserId?.toString();
   session.username = formUsername;
   session.isPro = isPro;
   session.isLoggedIn = true;
@@ -108,6 +112,7 @@ export const changePremium = async () => {
 };
 
 export const changeUsername = async (formData: FormData) => {
+  let username;
   const session = await getSession();
 
   const newUsername = formData.get("username") as string;

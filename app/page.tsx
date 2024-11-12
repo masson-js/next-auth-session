@@ -1,9 +1,12 @@
+import { getSession } from "@/actions";
 
-
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await getSession();
   return (
     <div>
-     Home
+      Home
+      <p>User ID:</p>
+      <span>{session.userId}</span>
     </div>
-  )
+  );
 }
